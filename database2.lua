@@ -646,7 +646,6 @@ do
 	end
 	
 	db2.encode = encode
-	db2.ldecode = ldecode
 	db2.decode = decode
 	db2.test = test
 	db2.errorfunc = errorfunc
