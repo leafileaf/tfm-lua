@@ -18,6 +18,101 @@ do
 	-- 
 	-- can decode legacy db1 strings, use param USE_LEGACY = true in decode
 	-- when decoding legacy strings, use a separate list of schemas using LegacyUnsignedInt and LegacyVarChar.
+	--
+	-- schemas:
+	-- a list of datatypes in the order to be encoded
+	-- field VERSION with the schema version, omit if no versioning is to be done
+	--
+	-- functions:
+	--
+	-- db2.UnsignedInt{ size = n , key = k }
+	-- Creates an UnsignedInt datatype using n bytes at key k
+	-- Encodes an unsigned integer
+	--
+	-- db2.LegacyUnsignedInt{ size = n , key = k }
+	-- Creates a LegacyUnsignedInt datatype using n bytes at key k
+	-- For decoding db1 strings, cannot encode
+	--
+	-- db2.Float{ key = k }
+	-- Creates a Float datatype at key k
+	-- Encodes a floating-point number
+	-- Uses 4 bytes
+	-- IEEE754 single-precision encoding for 8-bit-per-byte encoding, otherwises uses a 7-bit exponent and a 20-bit significand
+	--
+	-- db2.Double{ key = k }
+	-- Creates a Double datatype at key k
+	-- Encodes a floating-point number
+	-- Uses 8 bytes
+	-- IEEE754 double-precision encoding for 8-bit-per-byte encoding, otherwise uses a 10-bit exponent and a 45-bit significand
+	--
+	-- db2.VarChar{ size = n , key = k }
+	-- Creates a VarChar datatype at key k
+	-- Encodes a string of maximum length n
+	--
+	-- db2.FixedChar{ size = n , key = k }
+	-- Creates a FixedChar datatype at key k
+	-- Encodes a string of length n
+	-- Shorter strings will be right-padded with \x00
+	--
+	-- db2.Bitset{ size = n , key = k }
+	-- Creates a Bitset datatype at key k
+	-- Encodes n boolean values
+	--
+	-- db2.VarBitset{ size = n , key = k }
+	-- Creates a VarBitset datatype at key k
+	-- Encodes up to n boolean values
+	--
+	-- db2.VarList{ size = n , key = k , schema = s }
+	-- Creates a VarList datatype at key k
+	-- Encodes a list at key k of up to n objects with structure s
+	-- if s has a VERSION field, it will be ignored
+	--
+	-- db2.FixedList{ size = n , key = k , schema = s }
+	-- Creates a FixedList datatype at key k
+	-- Encodes a list at key k of exactly n objects with structure s
+	-- if s has a VERSION field, it will be ignored
+	-- if the list has less than n objects, an error is thrown
+	--
+	-- db2.encode( schema , data , optional params )
+	-- Encodes data with the given schema
+	-- Optionally applies params to the encoding
+	--
+	-- db2.decode( schemalist , encoded , optional params )
+	-- Decodes data with the given schema
+	-- Optionally applies params to the encoding
+	-- If a settings byte is present, it overrides params
+	--
+	-- db2.test( encoded , optional params )
+	-- Tests if encoded is a valid db2 string with optional params
+	--
+	-- db2.errorfunc( func )
+	-- Instead of throwing errors, db2 will now call func if it encounters an error
+	--
+	-- db2.bytestonumber( bytes , bpb )
+	-- Converts bytes to an integer using bpb bits per byte
+	-- Uses little-endian encoding
+	--
+	-- db2.numbertobytes( num , bpb , len )
+	-- Converts num to a string of length len using bpb bits per byte
+	-- Uses little-endian encoding
+	--
+	-- db2.lbtn( bytes , bpb )
+	-- Converts bytes to an integer using bpb bits per byte
+	-- Legacy function for decoding db1 strings
+	-- Uses big-endian encoding
+	--
+	-- db2.lntb( num , bpb , expected_length )
+	-- Converts num to a string of length expected_length using bpb bits per byte
+	-- Legacy function for encoding db1 strings - unused
+	-- Uses big-endian encoding
+	-- Warning: unsafe; if num is too big to fit in expected_length bytes output will be bigger than expected
+	--
+	-- Valid parameters to db2.encode and db2.decode:
+	-- USE_SETTINGS (default true): whether to encode a byte with encoding settings in front
+	-- USE_MAGIC (default true): whether to use magic bytes to ensure read string is db2
+	-- USE_EIGHTBIT (default false): whether to use 8-bit encoding
+	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
+	-- USE_LEGACY (default false): legacy mode decoding, throws an error when used with db2.encode
 	
 	local error = error
 	
