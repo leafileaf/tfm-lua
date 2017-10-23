@@ -661,13 +661,13 @@ do
 		local vl = USE_VERSION
 		
 		if USE_SETTINGS then
-			local sstr = numbertobytes( enc:byte(ptr) , 1 , 8 )
+			local settings = enc:byte(ptr)
 			
-			if not ( sstr:byte(4) == 1 and sstr:byte(6) == 1 ) then db2.info = 4 return error("db2: decode: Invalid settings byte",2) end
+			if not ( settings % 2^6 >= 2^5 and settings % 2^4 >= 2^3 ) then db2.info = 4 return error("db2: decode: Invalid settings byte",2) end
 			
-			vl = bytestonumber( sstr:sub(ptr,ptr+2) , 1 )
-			USE_MAGIC = sstr:byte(5) == 1
-			USE_EIGHTBIT = sstr:byte(8) == 1
+			vl = settings % 2^3
+			USE_MAGIC = settings % 2^5 >= 2^4
+			USE_EIGHTBIT = settings >= 2^7
 			bpb = USE_EIGHTBIT and 8 or 7
 			
 			ptr = ptr + 1
@@ -713,12 +713,12 @@ do
 		local ptr = 1
 		
 		if USE_SETTINGS then
-			local sstr = numbertobytes( enc:byte(ptr) , 1 , 8 )
+			local settings = enc:byte(ptr)
 			
-			if not ( sstr:byte(4) == 1 and sstr:byte(6) == 1 ) then db2.info = 4 return false end
+			if not ( settings % 2^6 >= 2^5 and settings % 2^4 >= 2^3 ) then db2.info = 4 return false end
 			
-			USE_MAGIC = sstr:byte(5) == 1
-			USE_EIGHTBIT = sstr:byte(8) == 1
+			USE_MAGIC = settings % 2^5 >= 2^4
+			USE_EIGHTBIT = settings >= 2^7
 			bpb = USE_EIGHTBIT and 8 or 7
 			
 			ptr = ptr + 1
