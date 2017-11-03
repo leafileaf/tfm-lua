@@ -2,11 +2,11 @@ local schema = {
 	VERSION = 24,
 	db2.UnsignedInt{ size = 2 , key = "apple" },
 	db2.UnsignedInt{ size = 1 , key = "pear" },
-	db2.VarList{ size = 3 , key = "meme" , schema = {
+	db2.VarObjectList{ size = 3 , key = "meme" , schema = {
 		db2.UnsignedInt{ size = 3 , key = "banana" },
 		db2.VarChar{ size = 120 , key = "nope" },
 	} },
-	db2.FixedList{ size = 3 , key = "owo" , schema = {
+	db2.FixedObjectList{ size = 3 , key = "owo" , schema = {
 		db2.UnsignedInt{ size = 1 , key = "lmao" }
 	} },
 	db2.VarChar{ size = 20 , key = "kek" },
