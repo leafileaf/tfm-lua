@@ -46,11 +46,14 @@ local d = db2.decode( { [24] = schema } , e )
 
 local function rcheck( t , s , n )
 	local f = true
-	for k , v in pairs( t ) do
+	for k , v in pairs( s ) do
 		if type(v) == "table" then
 			if not rcheck( t[k] , s[k] , n.."."..k ) then f = false end
-		elseif t[k] ~= s[k] then
-			print(n.."."..k.." ("..tostring(t[k])..") ~= "..tostring(s[k]))
+		elseif s[k] ~= t[k] then
+			print(n.."."..k..": "..tostring(s[k]).." ~= "..tostring(t[k]))
+			if type(s[k]) == "number" and type(t[k]) == "number" then
+				print("difference = "..math.abs(s[k]-t[k]))
+			end
 			f = false
 		end
 	end
