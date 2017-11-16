@@ -36,11 +36,9 @@ local source = { apple = 50 , pear = 20 , kek = "kekekeke" , kak = "kakak" , end
 	false, true, false, true, false, false, true
 } , vbstest = {
 	true, false, true
-} , ltest = lt } , {
-	USE_MAGIC = false
-}
+} , ltest = lt }
 
-local e = db2.encode( schema , source )
+local e = db2.encode( schema , source , { USE_MAGIC = false } )
 
 local d = db2.decode( { [24] = schema } , e )
 
