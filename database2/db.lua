@@ -1,7 +1,11 @@
--- database2 by Leafileaf
+-- database2
+-- serialisating objects with known structure
+-- by Leafileaf
 
 do
 	local db2 = {}
+	db2.VERSION = "1.0"
+	
 	-- notes on encoding:
 	-- [settings (1)][magic (2)][version (0-7)][ data ]
 	-- settings:
@@ -17,7 +21,6 @@ do
 	-- version: version number in little-endian (param USE_VERSION = n to force n bytes, otherwise dynamically scaled)
 	-- 
 	-- can decode legacy db1 strings, use param USE_LEGACY = true in decode
-	-- when decoding legacy strings, use a separate list of schemas using LegacyUnsignedInt and LegacyVarChar.
 	--
 	-- schemas:
 	-- a list of datatypes in the order to be encoded
@@ -28,10 +31,6 @@ do
 	-- db2.UnsignedInt{ size = n , key = k }
 	-- Creates an UnsignedInt datatype using n bytes at key k
 	-- Encodes an unsigned integer
-	--
-	-- db2.LegacyUnsignedInt{ size = n , key = k }
-	-- Creates a LegacyUnsignedInt datatype using n bytes at key k
-	-- For decoding db1 strings, cannot encode
 	--
 	-- db2.Float{ key = k }
 	-- Creates a Float datatype at key k
@@ -124,7 +123,7 @@ do
 	--
 	-- db2.lntb( num , bpb , expected_length )
 	-- Converts num to a string of length expected_length using bpb bits per byte
-	-- Legacy function for encoding db1 strings - unused
+	-- Legacy function for encoding db1 strings
 	-- Uses big-endian encoding
 	-- Warning: unsafe; if num is too big to fit in expected_length bytes output will be bigger than expected
 	--
@@ -133,7 +132,7 @@ do
 	-- USE_MAGIC (default true): whether to use magic bytes to ensure read string is db2
 	-- USE_EIGHTBIT (default false): whether to use 8-bit encoding
 	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
-	-- USE_LEGACY (default false): legacy mode decoding, throws an error when used with db2.encode
+	-- USE_LEGACY (default false): legacy mode encoding/decoding
 	-- USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
 	
 	local error = error
@@ -190,6 +189,7 @@ do
 		end
 		return table.concat( t )
 	end
+	local islegacy = false
 	
 	db2.UnsignedInt = function( params )
 		db2.info = 0
@@ -698,15 +698,43 @@ do
 		}
 	end
 	
-	local encode = function( schema , data , params ) -- schema , data
+	local togglelegacy = function()
+		local a , b = bytestonumber , numbertobytes
+		bytestonumber , numbertobytes = lbtn , lntb
+		lbtn , lntb = a , b
+		islegacy = not islegacy
+	end
+	
+	local checklegacy = function() -- maybe an error occurred while encoding/decoding in legacy mode
+		if islegacy then togglelegacy() end
+	end
+	
+	local legacy = function( f , ... )
+		togglelegacy()
+		local r = f( ... )
+		togglelegacy()
+		return r
+	end
+	
+	local function encode( schema , data , params ) -- schema , data
 		db2.info = 0
+		checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
 		local USE_EIGHTBIT = params.USE_EIGHTBIT or false
 		local USE_MAGIC = params.USE_MAGIC or true
+		local USE_VERSION = params.USE_VERSION
+		local USE_LEGACY = params.USE_LEGACY
 		
-		if params.USE_LEGACY then db2.info = 3 return error("db2: encode: Cannot encode in legacy mode",2) end
+		if USE_LEGACY then
+			return legacy( encode , schema , data , {
+				USE_SETTINGS = false,
+				USE_EIGHTBIT = USE_EIGHTBIT,
+				USE_MAGIC = false,
+				USE_VERSION = USE_VERSION or 2
+			} )
+		end
 		if params.USE_SCHEMALIST then db2.info = 3 return error("db2: encode: Cannot treat schema as a list",2) end
 		
 		local bpb = USE_EIGHTBIT and 8 or 7
@@ -724,22 +752,24 @@ do
 		return table.concat( enc )
 	end
 	
-	local decode = function( t , enc , params )
+	local function decode( t , enc , params )
 		db2.info = 0
+		checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
 		local USE_EIGHTBIT = params.USE_EIGHTBIT or false
 		local USE_MAGIC = params.USE_MAGIC or true
 		local USE_VERSION = params.USE_VERSION or nil
+		local USE_LEGACY = params.USE_LEGACY
 		
-		local bytestonumber = bytestonumber
-		
-		if params.USE_LEGACY then
-			USE_SETTINGS = false
-			USE_MAGIC = false
-			USE_VERSION = params.USE_VERSION or 2
-			bytestonumber = lbtn
+		if USE_LEGACY then
+			return legacy( decode , t , enc , {
+				USE_SETTINGS = false,
+				USE_EIGHTBIT = USE_EIGHTBIT,
+				USE_MAGIC = false,
+				USE_VERSION = USE_VERSION or 2
+			} )
 		end
 		
 		local bpb = USE_EIGHTBIT and 8 or 7
@@ -789,6 +819,7 @@ do
 	
 	local test = function( enc , params )
 		db2.info = 0
+		checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
