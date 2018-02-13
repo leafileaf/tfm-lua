@@ -2,20 +2,24 @@
 -- serialisating objects with known structure
 -- by Leafileaf
 
+----- IMPORTANT -----
+-- database2 can decode and encode database1 strings, but encoding to db1 is discouraged
+-- database2 is not compatible with the data format used in database3
+
 do
 	local db2 = {}
 	db2.VERSION = "1.0"
 	
 	-- notes on encoding:
 	-- [settings (1)][magic (2)][version (0-7)][ data ]
-	-- settings:
+	-- settings: (param USE_SETTINGS = true (default))
 	--     bits 0-2: length of version field
 	--        bit 3: is always set
 	--            4: is magic number enabled?
 	--            5: is always set
 	--            6: reserved
 	--            7: set if 8-bit encoding, can't be set on 7-bit anyway (param USE_EIGHTBIT = true)
-	-- magic: (param USE_MAGIC = false)
+	-- magic: (param USE_MAGIC = true (default))
 	--     bits 0-13: 10010000001000 in little-endian
 	--        bit 15: set if in 8-bit mode
 	-- version: version number in little-endian (param USE_VERSION = n to force n bytes, otherwise dynamically scaled)
@@ -125,7 +129,8 @@ do
 	-- Converts num to a string of length expected_length using bpb bits per byte
 	-- Legacy function for encoding db1 strings
 	-- Uses big-endian encoding
-	-- Warning: unsafe; if num is too big to fit in expected_length bytes output will be bigger than expected
+	-- Warning: unsafe; if num is too big to fit in expected_length bytes output will be bigger than expected and will corrupt data
+	-- Encoding in legacy mode is discouraged
 	--
 	-- Valid parameters to db2.encode and db2.decode:
 	-- USE_SETTINGS (default true): whether to encode a byte with encoding settings in front
