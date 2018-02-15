@@ -241,7 +241,7 @@ do
 		}
 	end
 	
-	db2.Float = function( params ) -- single-bit precision floats -- https://stackoverflow.com/questions/14416734/lua-packing-ieee754-single-precision-floating-point-numbers
+	db2.Float = function( params ) -- single-precision floats -- https://stackoverflow.com/questions/14416734/lua-packing-ieee754-single-precision-floating-point-numbers
 		db2.info = 0
 		
 		if params.key == nil then db2.info = 7 return error( "db2: Float: Expected key, found nil" , 2 ) end
