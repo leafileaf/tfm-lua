@@ -137,7 +137,7 @@ do
 	-- USE_MAGIC (default true): whether to use magic bytes to ensure read string is db2
 	-- USE_EIGHTBIT (default false): whether to use 8-bit encoding
 	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
-	-- USE_LEGACY (default false): legacy mode encoding/decoding
+	-- USE_LEGACY (default false): legacy mode encoding/decoding NOTE: broken, fix later
 	-- USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
 	
 	local error = error
@@ -212,28 +212,6 @@ do
 			end,
 			decode = function( enc , ptr , bpb )
 				local r = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + bytes - 1 ) , bpb )
-				ptr.ptr = ptr.ptr + bytes
-				return r
-			end,
-			key = params.key
-		}
-	end
-	
-	db2.LegacyUnsignedInt = function( params ) -- old database.CustomInt, all other Int types can be derived from this
-		db2.info = 0
-		
-		local bytes = params.size
-		if type(bytes) ~= "number" then db2.info = 7 return error( "db2: LegacyUnsignedInt: Expected number, found " .. type(bytes) , 2 ) end
-		if math.floor(bytes) ~= bytes then db2.info = 7 return error( "db2: LegacyUnsignedInt: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: LegacyUnsignedInt: Expected key, found nil" , 2 ) end
-		
-		return {
-			encode = function( data , bpb )
-				db2.info = 8
-				return error( "db2: LegacyUnsignedInt: encode: Read-only datatype" )
-			end,
-			decode = function( enc , ptr , bpb )
-				local r = lbtn( enc:sub( ptr.ptr , ptr.ptr + bytes - 1 ) , bpb )
 				ptr.ptr = ptr.ptr + bytes
 				return r
 			end,
@@ -432,29 +410,6 @@ do
 			decode = function( enc , ptr , bpb )
 				local lsz = math.ceil(nbits/bpb)
 				local len = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb )
-				ptr.ptr = ptr.ptr + lsz + len
-				return enc:sub( ptr.ptr - len , ptr.ptr - 1 )
-			end,
-			key = params.key
-		}
-	end
-	
-	db2.LegacyVarChar = function( params )
-		db2.info = 0
-		
-		local sz , nbits = params.size , math.log( params.size + 1 ) / log2 + 1
-		if type(sz) ~= "number" then db2.info = 7 return error( "db2: LegacyVarChar: Expected number, found " .. type(sz) , 2 ) end
-		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: LegacyVarChar: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: LegacyVarChar: Expected key, found nil" , 2 ) end
-		
-		return {
-			encode = function( data , bpb )
-				db2.info = 8
-				return error( "db2: LegacyVarChar: encode: Read-only datatype" )
-			end,
-			decode = function( enc , ptr , bpb )
-				local lsz = math.ceil(nbits/bpb)
-				local len = lbtn( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb )
 				ptr.ptr = ptr.ptr + lsz + len
 				return enc:sub( ptr.ptr - len , ptr.ptr - 1 )
 			end,
