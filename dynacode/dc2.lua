@@ -1009,8 +1009,8 @@ do
 						env.__run = false
 					else
 						env.__i = env.__q[l]
+						env.__q[l] = nil
 					end
-					env.__q[l] = nil
 				end
 			},
 			[0x5E] = { -- LOOP r8
@@ -1369,7 +1369,7 @@ do
 				end
 				stat = exec( env , env.__e[id][i] )
 				if stat ~= dyna.EXECUTE_OK then return stat end
-				if #env.__q < n then return dyna.EXECUTE_INVACTION end
+				if #env.__q < n then env.__a = false return dyna.EXECUTE_INVACTION end
 			end
 			
 			return dyna.EXECUTE_OK
