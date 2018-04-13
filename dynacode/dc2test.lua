@@ -2,21 +2,21 @@
 
 	Calculates the Nth fibonacci number.
 	
-	Input: n = %eax
-	Output:  = %eax
+	Input: n = %r0
+	Output:  = %r0
 	
-	push ebx
-	push ecx
-	mov ecx , eax
-	dec ecx
+	push r1
+	push r2
+	mov r2 , r0
+	dec r2
 	jz +10
-	mov eax , 1
-	mov ebx , 0
-	xchg eax , ebx
-	add eax , ebx
+	mov r0 , 1
+	mov r1 , 0
+	xchg r0 , r1
+	add r0 , r1
 	loop -6
-	pop ecx
-	pop ebx
+	pop r2
+	pop r1
 	hlt
 
 ]]
@@ -34,12 +34,12 @@ os:exec()
 
 	Increments 65025 times.
 	
-	mov eax , 255
-	mov edx , eax
+	mov r0 , 255
+	mov r3 , r0
 	mul
-	mov ecx , eax
-	mov eax , 0
-	inc eax
+	mov r2 , r0
+	mov r0 , 0
+	inc r0
 	loop -3
 	hlt
 
