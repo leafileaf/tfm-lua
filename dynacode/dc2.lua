@@ -14,6 +14,7 @@ do
 	dyna.EXECUTE_OPERROR = 2 -- invalid opcode, etc
 	dyna.EXECUTE_ARGERROR = 3 -- invalid arguments to operation
 	dyna.EXECUTE_SEGFAULT = 4 -- bad memory access
+	dyna.EXECUTE_INVACTION = 5 -- invalid action
 	
 	--- Creates a new Dynacode environment.
 	--
@@ -75,6 +76,9 @@ do
 		--
 		local tfmsys = setmetatable( {} , dynamt )
 		local tfmsysmt = { __index = tfmsys }
+		
+		local RETURN_CONTROL = {}
+		tfmsys.RETURN_CONTROL = RETURN_CONTROL
 		
 		local ops = {
 			[0x00] = { -- NOP
@@ -760,10 +764,10 @@ do
 					local r2 = x2%8
 					local r3 = ((x2-r2)/8)%8
 					local c1 = ((x2-r2-r3*8)/64)%4
-					local c2 = x3%128
-					c1 = c1*2 + (x3-c2)/128
+					c1 = c1*2 + x3%2
+					local c2 = (x3-x3%2)/2
 					
-					local m = r2 + c1*r3 + c2
+					local m = env.__r[r2] + c1*env.__r[r3] + c2
 					local o1 = d and env.__m[m] or env.__r[r1]
 					local o2 = d and env.__r[r1] or env.__m[m]
 					local k = 0
@@ -826,10 +830,10 @@ do
 					local r2 = x2%8
 					local r3 = ((x2-r2)/8)%8
 					local c1 = ((x2-r2-r3*8)/64)%4
-					local c2 = x3%128
-					c1 = c1*2 + (x3-c2)/128
+					c1 = c1*2 + x3%2
+					local c2 = (x3-x3%2)/2
 					
-					local m = r2 + c1*r3 + c2
+					local m = env.__r[r2] + c1*env.__r[r3] + c2
 					
 					env.__r[r1] , env.__m[m] = env.__m[m] , env.__r[r1]
 				end
@@ -842,10 +846,10 @@ do
 					local r2 = x2%8
 					local r3 = ((x2-r2)/8)%8
 					local c1 = ((x2-r2-r3*8)/64)%4
-					local c2 = x3%128
-					c1 = c1*2 + (x3-c2)/128
+					c1 = c1*2 + x3%2
+					local c2 = (x3-x3%2)/2
 					
-					local m = r2 + c1*r3 + c2
+					local m = env.__r[r2] + c1*env.__r[r3] + c2
 					
 					if d then
 						env.__m[m] = env.__r[r1]
@@ -1000,7 +1004,13 @@ do
 			[0x5D] = { -- RET
 				d = 0,
 				f = function( env )
-					env.__i = table.remove( env.__q )
+					local l = #env.__q
+					if env.__q[l] == RETURN_CONTROL then
+						env.__run = false
+					else
+						env.__i = env.__q[l]
+					end
+					env.__q[l] = nil
 				end
 			},
 			[0x5E] = { -- LOOP r8
@@ -1183,6 +1193,40 @@ do
 					env.__r[r1] = env.__r[r2]
 				end
 			},
+			[0x79] = { -- JECXZ r8
+				d = 1,
+				f = function( env , x )
+					if env.__r[2] == 0 then
+						if x > 127 then x = x - 256 end
+						env.__i = env.__i + x
+					end
+				end
+			},
+			[0x7A] = { -- JECXZ r
+				d = 1,
+				f = function( env , x )
+					if env.__r[2] == 0 then
+						env.__i = env.__r[x%8]
+					end
+				end
+			},
+			[0x7B] = { -- JECXNZ r8
+				d = 1,
+				f = function( env , x )
+					if env.__r[2] ~= 0 then
+						if x > 127 then x = x - 256 end
+						env.__i = env.__i + x
+					end
+				end
+			},
+			[0x7C] = { -- JECXNZ r
+				d = 1,
+				f = function( env , x )
+					if env.__r[2] ~= 0 then
+						env.__i = env.__r[x%8]
+					end
+				end
+			},
 			[0x7F] = { -- HLT
 				d = 0,
 				f = function( env )
@@ -1199,6 +1243,35 @@ do
 			},
 		}
 		
+		local mathlib = function( env ) -- method in r0, arguments in stack
+			--
+		end
+		local syscall = function( env ) -- pass method in r0
+			local typ = env.__r[0]
+			if typ == 0x01 then -- register event handler
+				local etyp = env.__r[1]
+				local hloc = env.__r[2]
+				if not env.__e[etyp] then env.__e[etyp] = {} end
+				env.__e[etyp][ #env.__e[etyp] + 1 ] = hloc
+			elseif typ == 0x02 then -- print
+				local sloc = env.__r[1]
+				local c,cc = 0,1
+				local sa = {}
+				while true do
+					c = env.__m[sloc]
+					if c and c ~= 0 then
+						sa[cc] = c
+					else
+						break
+					end
+					sloc , cc = sloc + 1 , cc + 1
+				end
+				local str = string.char( table.unpack( sa ) )
+				
+				print(str)
+			end
+		end
+		
 		tfmsys.__init = function( env )
 			setmetatable( env , tfmsysmt )
 			
@@ -1214,6 +1287,10 @@ do
 			
 			-- registers
 			env.__r = { 0 , 0 , 0 , 0 , 0 , 0 , 0 , [0] = 0 }
+			
+			-- interrupt
+			env.__h[0x0F] = mathlib
+			env.__h[0x80] = syscall
 		end
 		
 		--- Loads a program into memory
@@ -1237,6 +1314,7 @@ do
 			env.__i = ent or 1
 			local ins = ops[0x00]
 			local ci = env.__i
+			local ret = 0
 			env.__run = true
 			while env.__run and env.__a do
 				if env.__m[env.__i] then
@@ -1244,8 +1322,9 @@ do
 					if ins then
 						ci = env.__i
 						env.__i = env.__i + ins.d + 1
-						ins.f( env , table.unpack( env.__m , ci + 1 , ci + ins.d ) )
+						ret = ins.f( env , table.unpack( env.__m , ci + 1 , ci + ins.d ) )
 						if env.__f then env.__f( env ) end
+						if ret then return ret end
 					else -- bad operation!
 						env.__a = false
 						return dyna.EXECUTE_OPERROR
@@ -1256,6 +1335,7 @@ do
 				end
 			end
 			env.__run = false
+			return dyna.EXECUTE_OK
 		end
 		tfmsys.exec = exec
 		
@@ -1267,6 +1347,32 @@ do
 		tfmsys.reset = function( env )
 			env.__r = { 0 , 0 , 0 , 0 , 0 , 0 , 0 , [0] = 0 }
 			env.__a = true
+		end
+		
+		--- Emit an event to the Environment
+		--
+		-- @param       {DynaEnv}  env    The Environment to fire event
+		-- @param       {Integer}  id     The Event to fire
+		-- @param[opt]  {Integer}  ...    Additional arguments
+		-- @return      {Integer}         Execution status
+		--
+		tfmsys.event = function( env , id , ... )
+			if not env.__e[id] then return dyna.EXECUTE_OK end
+			local n = #env.__q + 1
+			local arg = { ... }
+			local l = #arg
+			local stat = 0
+			for i = 1 , #env.__e[id] do
+				env.__q[n] = RETURN_CONTROL
+				for j = 1 , l do
+					env.__q[n+l-j] = arg[j]
+				end
+				stat = exec( env , env.__e[id][i] )
+				if stat ~= dyna.EXECUTE_OK then return stat end
+				if #env.__q < n then return dyna.EXECUTE_INVACTION end
+			end
+			
+			return dyna.EXECUTE_OK
 		end
 		
 		dyna.sys.tfm = tfmsys
