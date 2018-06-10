@@ -26,7 +26,7 @@ math2 = {
 	end,
 	withinCircle = function( x1 , y1 , r , x2 , y2 )
 		-- Checks if a point (x2,y2) is inside the circle defined by centre (x1,y1) and radius r.
-		-- Faster than calling r <= math2.pythag( x1 , y1 , x2 , y2 ).
+		-- Faster than calling math2.pythag( x1 , y1 , x2 , y2 ) <= r.
 		-- May also call math2.withinCircle( x1 , y1 , r ) to check if the circle includes the origin.
 		-- number x1
 		-- number y1
@@ -36,7 +36,7 @@ math2 = {
 		-- return boolean = is point inside circle?
 		local x1 , y1 , x2 , y2 = x1 or 0 , y1 or 0 , x2 or 0 , y2 or 0
 		local dx , dy = x1 - x2 , y1 - y2
-		return d * d <= dx * dy + dy * dy
+		return dx*dx + dy*dy <= r*r
 	end,
 	withinRect = function( x1 , y1 , w , h , a , x2 , y2 )
 		-- Checks if a point (x2,y2) is inside the rectangle defined by centre (x1,y1), width w, height h, and rotation a.
@@ -68,6 +68,18 @@ math2 = {
 				return false
 			end
 		end
+	end,
+	circleIntersectCircle = function( x1 , y1 , r1 , x2 , y2 , r2 )
+		-- Checks if the circle defined by centre (x1,y1) and radius r1 intersects the circle defined by centre (x2,y2) and radius r2.
+		-- number x1
+		-- number y1
+		-- number r1
+		-- number x2
+		-- number y2
+		-- number r2
+		-- return boolean = do circles intersect?
+		local dx , dy , cr = x1 - x2 , y1 - y2 , r1 + r2
+		return dx*dx + dy*dy < cr*cr
 	end,
 	round = function( num )
 		-- Rounds a number off to the nearest integer.
