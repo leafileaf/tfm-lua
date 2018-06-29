@@ -678,7 +678,7 @@ do
 	
 	local function encode( schema , data , params ) -- schema , data
 		db2.info = 0
-		checklegacy()
+		--checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
@@ -714,7 +714,7 @@ do
 	
 	local function decode( t , enc , params )
 		db2.info = 0
-		checklegacy()
+		--checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
@@ -779,7 +779,7 @@ do
 	
 	local test = function( enc , params )
 		db2.info = 0
-		checklegacy()
+		--checklegacy()
 		
 		params = params or {}
 		local USE_SETTINGS = params.USE_SETTINGS or true
