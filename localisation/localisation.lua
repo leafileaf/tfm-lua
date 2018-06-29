@@ -76,6 +76,7 @@ do
 		-- return LocalisationHandler
 		return setmetatable( {__localisations={}} , c )
 	end
+	localisation.__index = localisation
 	
 	_G.localisation = localisation
 end
