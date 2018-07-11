@@ -211,9 +211,9 @@ do
 				return numbertobytes( data , bpb , bytes )
 			end,
 			decode = function( enc , ptr , bpb )
-				local r = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + bytes - 1 ) , bpb )
-				ptr.ptr = ptr.ptr + bytes
-				return r
+				local r = bytestonumber( enc:sub( ptr , ptr + bytes - 1 ) , bpb )
+				ptr = ptr + bytes
+				return r , ptr
 			end,
 			key = params.key
 		}
@@ -270,8 +270,8 @@ do
 				end
 			end,
 			decode = function( enc , ptr , bpb )
-				local b4 , b3 , b2 , b1 = enc:byte( ptr.ptr , ptr.ptr + 3 )
-				ptr.ptr = ptr.ptr + 4
+				local b4 , b3 , b2 , b1 = enc:byte( ptr , ptr + 3 )
+				ptr = ptr + 4
 				
 				local fullbits=  2^bpb - 1
 				local msb = 2^(bpb-1)
@@ -296,7 +296,7 @@ do
 				if b1 >= msb then
 					mant = -mant
 				end
-				return math.ldexp( mant , expo - fmsb )
+				return math.ldexp( mant , expo - fmsb ) , ptr
 			end,
 			key = params.key
 		}
@@ -355,9 +355,9 @@ do
 				end
 			end,
 			decode = function( enc , ptr , bpb )
-				local b2 , b1 = enc:byte( ptr.ptr + 6 , ptr.ptr + 7 )
-				local b38 = enc:sub( ptr.ptr , ptr.ptr + 5 )
-				ptr.ptr = ptr.ptr + 8
+				local b2 , b1 = enc:byte( ptr + 6 , ptr + 7 )
+				local b38 = enc:sub( ptr , ptr + 5 )
+				ptr = ptr + 8
 				
 				local fullbits=  2^bpb - 1
 				local msb = 2^(bpb-1)
@@ -386,7 +386,7 @@ do
 				if b1 >= msb then
 					mant = -mant
 				end
-				return math.ldexp( mant , expo - mpe )
+				return math.ldexp( mant , expo - mpe ) , ptr
 			end,
 			key = params.key
 		}
@@ -409,9 +409,9 @@ do
 			end,
 			decode = function( enc , ptr , bpb )
 				local lsz = math.ceil(nbits/bpb)
-				local len = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb )
-				ptr.ptr = ptr.ptr + lsz + len
-				return enc:sub( ptr.ptr - len , ptr.ptr - 1 )
+				local len = bytestonumber( enc:sub( ptr , ptr + lsz - 1 ) , bpb )
+				ptr = ptr + lsz + len
+				return enc:sub( ptr - len , ptr - 1 ) , ptr
 			end,
 			key = params.key
 		}
@@ -432,9 +432,9 @@ do
 				return data .. string.char(0):rep( sz - data:len() )
 			end,
 			decode = function( enc , ptr , bpb )
-				local r = enc:sub( ptr.ptr , ptr.ptr + sz - 1 )
-				ptr.ptr = ptr.ptr + sz
-				return r
+				local r = enc:sub( ptr , ptr + sz - 1 )
+				ptr = ptr + sz
+				return r , ptr
 			end,
 			key = params.key
 		}
@@ -465,14 +465,14 @@ do
 			decode = function( enc , ptr , bpb )
 				local r = {}
 				for i = 1 , math.ceil( sz / bpb ) do
-					local n = enc:byte( ptr.ptr + i - 1 )
+					local n = enc:byte( ptr + i - 1 )
 					for j = 1 , bpb do
 						table.insert( r , n%2 == 1 )
 						n = math.floor( n / 2 )
 					end
 				end
-				ptr.ptr = ptr.ptr + math.ceil( sz / bpb )
-				return r
+				ptr = ptr + math.ceil( sz / bpb )
+				return r , ptr
 			end,
 			key = params.key
 		}
@@ -503,18 +503,18 @@ do
 			end,
 			decode = function( enc , ptr , bpb )
 				local lsz = math.ceil(nbits/bpb)
-				local num = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb )
+				local num = bytestonumber( enc:sub( ptr , ptr + lsz - 1 ) , bpb )
 				local r = {}
 				for i = 1 , math.ceil( num / bpb ) do
-					local n = enc:byte( ptr.ptr + lsz + i - 1 )
+					local n = enc:byte( ptr + lsz + i - 1 )
 					for j = 1 , bpb do
 						table.insert( r , n%2 == 1 )
 						if #r == num then break end
 						n = math.floor( n / 2 )
 					end
 				end
-				ptr.ptr = ptr.ptr + lsz + math.ceil( num / bpb )
-				return r
+				ptr = ptr + lsz + math.ceil( num / bpb )
+				return r , ptr
 			end,
 			key = params.key
 		}
@@ -542,13 +542,13 @@ do
 			end,
 			decode = function( enc , ptr , bpb )
 				local lsz = math.ceil(nbits/bpb)
-				local n = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb ) -- size of list
-				ptr.ptr = ptr.ptr + lsz
+				local n = bytestonumber( enc:sub( ptr , ptr + lsz - 1 ) , bpb ) -- size of list
+				ptr = ptr + lsz
 				local out = {}
 				for i = 1 , n do
-					out[i] = dt.decode( enc , ptr , bpb )
+					out[i] , ptr = dt.decode( enc , ptr , bpb )
 				end
-				return out
+				return out , ptr
 			end,
 			key = params.key,
 		}
@@ -576,9 +576,9 @@ do
 			decode = function( enc , ptr , bpb )
 				local out = {}
 				for i = 1 , sz do
-					out[i] = dt.decode( enc , ptr , bpb )
+					out[i] , ptr = dt.decode( enc , ptr , bpb )
 				end
-				return out
+				return out , ptr
 			end,
 			key = params.key,
 		}
@@ -608,16 +608,16 @@ do
 			end,
 			decode = function( enc , ptr , bpb )
 				local lsz = math.ceil(nbits/bpb)
-				local n = bytestonumber( enc:sub( ptr.ptr , ptr.ptr + lsz - 1 ) , bpb ) -- size of list
-				ptr.ptr = ptr.ptr + lsz
+				local n = bytestonumber( enc:sub( ptr , ptr + lsz - 1 ) , bpb ) -- size of list
+				ptr = ptr + lsz
 				local out = {}
 				for i = 1 , n do
 					out[i] = {}
 					for j = 1 , #schema do -- same loop as db2.decode
-						out[i][schema[j].key] = schema[j].decode( enc , ptr , bpb )
+						out[i][schema[j].key] , ptr = schema[j].decode( enc , ptr , bpb )
 					end
 				end
-				return out
+				return out , ptr
 			end,
 			key = params.key,
 		}
@@ -649,10 +649,10 @@ do
 				for i = 1 , sz do
 					out[i] = {}
 					for j = 1 , #schema do
-						out[i][schema[j].key] = schema[j].decode( enc , ptr , bpb )
+						out[i][schema[j].key] , ptr = schema[j].decode( enc , ptr , bpb )
 					end
 				end
-				return out
+				return out , ptr
 			end,
 			key = params.key,
 		}
@@ -765,14 +765,13 @@ do
 		if not schema then db2.info = 5 return error("db2: decode: Missing schema",2) end
 		
 		local dat = {}
-		local p = { ptr = ptr }
 		for i = 1 , #schema do
-			dat[ schema[i].key ] = schema[i].decode( enc , p , bpb )
-			if p.ptr > enc:len() + 1 then db2.info = 6 return error("db2: decode: End of string reached while parsing",2) end
+			dat[ schema[i].key ] , ptr = schema[i].decode( enc , ptr , bpb )
+			if ptr > enc:len() + 1 then db2.info = 6 return error("db2: decode: End of string reached while parsing",2) end
 			if db2.info ~= 0 then return end
 		end
 		
-		if p.ptr ~= enc:len() + 1 then db2.info = 6 return error("db2: decode: End of schema reached while parsing",2) end
+		if ptr ~= enc:len() + 1 then db2.info = 6 return error("db2: decode: End of schema reached while parsing",2) end
 		
 		return dat
 	end
