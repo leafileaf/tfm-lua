@@ -150,6 +150,7 @@ do
 	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
 	-- USE_LEGACY (default false): legacy mode encoding/decoding NOTE: broken, fix later
 	-- USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
+	-- VERSION (default nil): use this version number instead of the one specified in schema.VERSION (if any), ignored when used with db2.decode
 	
 	local error = error
 	
@@ -684,6 +685,7 @@ do
 		local USE_MAGIC = params.USE_MAGIC or true
 		local USE_VERSION = params.USE_VERSION
 		local USE_LEGACY = params.USE_LEGACY
+		local VERSION = params.VERSION or schema.VERSION
 		
 		if USE_LEGACY then
 			return legacy( encode , schema , data , {
@@ -697,11 +699,11 @@ do
 		
 		local bpb = USE_EIGHTBIT and 8 or 7
 		
-		local vl = params.USE_VERSION or ( ( not schema.VERSION ) and 0 or math.ceil((math.log(schema.VERSION+1)/log2+1)/bpb) )
+		local vl = params.USE_VERSION or ( ( not VERSION ) and 0 or math.ceil((math.log(VERSION+1)/log2+1)/bpb) )
 		local enc = {
 			USE_SETTINGS and numbertobytes( vl + 8 + ( USE_MAGIC and 16 or 0 ) + 32 + ( USE_EIGHTBIT and 128 or 0 ) , bpb , 1 ),
 			USE_MAGIC and numbertobytes( 9224 + ( USE_EIGHTBIT and 32768 or 0 ) , bpb , 2 ),
-			numbertobytes( schema.VERSION or 0 , bpb , vl ),
+			numbertobytes( VERSION or 0 , bpb , vl ),
 		}
 		for i = 1 , #schema do
 			table.insert( enc , schema[i].encode( data[schema[i].key] , bpb ) )
