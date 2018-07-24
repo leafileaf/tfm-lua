@@ -26,75 +26,86 @@ do
 	-- 
 	-- can decode legacy db1 strings, use param USE_LEGACY = true in decode
 	--
+	--
 	-- schemas:
 	-- a list of datatypes in the order to be encoded
 	-- field VERSION with the schema version, omit if no versioning is to be done
 	--
-	-- functions:
 	--
-	-- db2.UnsignedInt{ size = n , key = k }
-	-- Creates an UnsignedInt datatype using n bytes at key k
+	-- datatypes:
+	-- all datatypes also accept the following parameters:
+	--
+	-- key = k:
+	-- indicates the data for this datatype can be found in key k
+	-- only optional if passing datatype as a parameter to db2.VarDataList or db2.FixedDataList
+	-- otherwise, breaks with unclean error on encode/decode attempt
+	--
+	-- db2.UnsignedInt{ size = n }
+	-- Creates an UnsignedInt datatype using n bytes
 	-- Encodes an unsigned integer
 	--
-	-- db2.Float{ key = k }
-	-- Creates a Float datatype at key k
+	-- db2.Float{}
+	-- Creates a Float datatype
 	-- Encodes a floating-point number
 	-- Uses 4 bytes
 	-- IEEE754 single-precision encoding for 8-bit-per-byte encoding, otherwises uses a 7-bit exponent and a 20-bit significand
 	--
-	-- db2.Double{ key = k }
-	-- Creates a Double datatype at key k
+	-- db2.Double{}
+	-- Creates a Double datatype
 	-- Encodes a floating-point number
 	-- Uses 8 bytes
 	-- IEEE754 double-precision encoding for 8-bit-per-byte encoding, otherwise uses a 10-bit exponent and a 45-bit significand
 	--
-	-- db2.VarChar{ size = n , key = k }
-	-- Creates a VarChar datatype at key k
+	-- db2.VarChar{ size = n }
+	-- Creates a VarChar datatype
 	-- Encodes a string of maximum length n
 	-- [length (x)][data...]
 	-- x is the minimum number of bytes required to encode maximum length n
 	-- Uses x+len(data) bytes
 	--
-	-- db2.FixedChar{ size = n , key = k }
-	-- Creates a FixedChar datatype at key k
+	-- db2.FixedChar{ size = n }
+	-- Creates a FixedChar datatype
 	-- Encodes a string of length n
 	-- [data...]
 	-- Uses n bytes
 	-- Shorter strings will be right-padded with \x00
 	--
-	-- db2.Bitset{ size = n , key = k }
-	-- Creates a Bitset datatype at key k
+	-- db2.Bitset{ size = n }
+	-- Creates a Bitset datatype
 	-- Encodes n boolean values
 	-- Uses ceil(n/bpb) bytes
 	--
-	-- db2.VarBitset{ size = n , key = k }
-	-- Creates a VarBitset datatype at key k
+	-- db2.VarBitset{ size = n }
+	-- Creates a VarBitset datatype
 	-- Encodes up to n boolean values
 	-- Uses ceil(len(data)/bpb) + ceil(log(n+1)/log(2^bpb)) bytes
 	--
-	-- db2.VarDataList{ size = n , key = k , datatype = d }
-	-- Creates a VarDataList datatype at key k
-	-- Encodes a list at key k of up to n data encodable by d
+	-- db2.VarDataList{ size = n , datatype = d }
+	-- Creates a VarDataList datatype
+	-- Encodes a list of up to n data encodable by d
 	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	--
-	-- db2.FixedDataList{ size = n , key = k , datatype = d }
-	-- Creates a FixedDataList datatype at key k
-	-- Encodes a list at key k of exactly n data encodable by d
+	-- db2.FixedDataList{ size = n , datatype = d }
+	-- Creates a FixedDataList datatype
+	-- Encodes a list of exactly n data encodable by d
 	-- Uses [...encodeddata] bytes
 	-- if the list has less than n objects, an error is thrown
 	--
-	-- db2.VarObjectList{ size = n , key = k , schema = s }
-	-- Creates a VarObjectList datatype at key k
-	-- Encodes a list at key k of up to n objects with structure s
+	-- db2.VarObjectList{ size = n , schema = s }
+	-- Creates a VarObjectList datatype
+	-- Encodes a list of up to n objects with structure s
 	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	--
-	-- db2.FixedObjectList{ size = n , key = k , schema = s }
-	-- Creates a FixedObjectList datatype at key k
-	-- Encodes a list at key k of exactly n objects with structure s
+	-- db2.FixedObjectList{ size = n , schema = s }
+	-- Creates a FixedObjectList datatype
+	-- Encodes a list of exactly n objects with structure s
 	-- Uses [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	-- if the list has less than n objects, an error is thrown
+	--
+	--
+	-- functions:
 	--
 	-- db2.encode( schema , data , optional params )
 	-- Encodes data with the given schema
@@ -139,6 +150,7 @@ do
 	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
 	-- USE_LEGACY (default false): legacy mode encoding/decoding NOTE: broken, fix later
 	-- USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
+	-- VERSION (default nil): use this version number instead of the one specified in schema.VERSION (if any), ignored when used with db2.decode
 	
 	local error = error
 	
@@ -202,7 +214,6 @@ do
 		local bytes = params.size
 		if type(bytes) ~= "number" then db2.info = 7 return error( "db2: UnsignedInt: Expected number, found " .. type(bytes) , 2 ) end
 		if math.floor(bytes) ~= bytes then db2.info = 7 return error( "db2: UnsignedInt: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: UnsignedInt: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -221,8 +232,6 @@ do
 	
 	db2.Float = function( params ) -- single-precision floats -- https://stackoverflow.com/questions/14416734/lua-packing-ieee754-single-precision-floating-point-numbers
 		db2.info = 0
-		
-		if params.key == nil then db2.info = 7 return error( "db2: Float: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -304,8 +313,6 @@ do
 	
 	db2.Double = function( params )
 		db2.info = 0
-		
-		if params.key == nil then db2.info = 7 return error( "db2: Double: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -398,7 +405,6 @@ do
 		local sz , nbits = params.size , math.log( params.size + 1 ) / log2 + 1
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: VarChar: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: VarChar: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: VarChar: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -423,7 +429,6 @@ do
 		local sz = params.size
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: FixedChar: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: FixedChar: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: FixedChar: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -446,7 +451,6 @@ do
 		local sz = params.size
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: Bitset: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: Bitset: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: Bitset: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -484,7 +488,6 @@ do
 		local sz , nbits = params.size , math.log( params.size + 1 ) / log2 + 1
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: VarBitset: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: VarBitset: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: VarBitset: Expected key, found nil" , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -526,8 +529,7 @@ do
 		local sz , nbits , dt = params.size , math.log( params.size + 1 ) / log2 + 1 , params.datatype
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: VarDataList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: VarDataList: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: VarDataList: Expected key, found nil" , 2 ) end
-		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode and datatype.key ) then db2.info = 7 return error( "db2: VarDataList: Expected datatype, found " .. type(schema) , 2 ) end
+		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode ) then db2.info = 7 return error( "db2: VarDataList: Expected datatype, found " .. type(schema) , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -560,8 +562,7 @@ do
 		local sz , dt = params.size , params.datatype
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: FixedDataList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: FixedDataList: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: FixedDataList: Expected key, found nil" , 2 ) end
-		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode and datatype.key ) then db2.info = 7 return error( "db2: FixedDataList: Expected datatype, found " .. type(schema) , 2 ) end
+		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode ) then db2.info = 7 return error( "db2: FixedDataList: Expected datatype, found " .. type(schema) , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -590,7 +591,6 @@ do
 		local sz , nbits , schema = params.size , math.log( params.size + 1 ) / log2 + 1 , params.schema
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: VarObjectList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: VarObjectList: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: VarObjectList: Expected key, found nil" , 2 ) end
 		if type(schema) ~= "table" then db2.info = 7 return error( "db2: VarObjectList: Expected table, found " .. type(schema) , 2 ) end
 		
 		return {
@@ -629,7 +629,6 @@ do
 		local sz , schema = params.size , params.schema
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: FixedObjectList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: FixedObjectList: Expected integer" , 2 ) end
-		if params.key == nil then db2.info = 7 return error( "db2: FixedObjectList: Expected key, found nil" , 2 ) end
 		if type(schema) ~= "table" then db2.info = 7 return error( "db2: FixedObjectList: Expected table, found " .. type(schema) , 2 ) end
 		
 		return {
@@ -686,6 +685,7 @@ do
 		local USE_MAGIC = params.USE_MAGIC or true
 		local USE_VERSION = params.USE_VERSION
 		local USE_LEGACY = params.USE_LEGACY
+		local VERSION = params.VERSION or schema.VERSION
 		
 		if USE_LEGACY then
 			return legacy( encode , schema , data , {
@@ -699,11 +699,11 @@ do
 		
 		local bpb = USE_EIGHTBIT and 8 or 7
 		
-		local vl = params.USE_VERSION or ( ( not schema.VERSION ) and 0 or math.ceil((math.log(schema.VERSION+1)/log2+1)/bpb) )
+		local vl = params.USE_VERSION or ( ( not VERSION ) and 0 or math.ceil((math.log(VERSION+1)/log2+1)/bpb) )
 		local enc = {
 			USE_SETTINGS and numbertobytes( vl + 8 + ( USE_MAGIC and 16 or 0 ) + 32 + ( USE_EIGHTBIT and 128 or 0 ) , bpb , 1 ),
 			USE_MAGIC and numbertobytes( 9224 + ( USE_EIGHTBIT and 32768 or 0 ) , bpb , 2 ),
-			numbertobytes( schema.VERSION or 0 , bpb , vl ),
+			numbertobytes( VERSION or 0 , bpb , vl ),
 		}
 		for i = 1 , #schema do
 			table.insert( enc , schema[i].encode( data[schema[i].key] , bpb ) )
