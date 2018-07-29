@@ -8,7 +8,7 @@
 
 do
 	local db2 = {}
-	db2.VERSION = "1.0"
+	db2.VERSION = "1.1"
 	
 	-- notes on encoding:
 	-- [settings (1)][magic (2)][version (0-7)][ data ]
@@ -104,6 +104,14 @@ do
 	-- if s has a VERSION field, it will be ignored
 	-- if the list has less than n objects, an error is thrown
 	--
+	-- db2.SwitchObject{ typekey = tk , typedt = tdt , schemamap = sm }
+	-- Creates a SwitchObject datatype
+	-- Encodes an object with a structure dependent on the type found in typekey
+	-- See the test file for example usage
+	-- tk: where the type of the object can be found in the data
+	-- tdt: the datatype of the type of the object (suggest db2.UnsignedInt)
+	-- sm: a map of type->schema
+	--
 	--
 	-- functions:
 	--
@@ -167,6 +175,7 @@ do
 	db2.INFO_DECODE_CORRUPTSTRING = 6 -- end of parsing but not end of string or vice versa
 	db2.INFO_DATATYPE_ERROR = 7 -- errors when initialising datatypes
 	db2.INFO_GENERICERROR = 8
+	db2.INFO_DECODE_GENERICERROR = 9
 	-- END INFO ENUMS --
 	
 	local lbtn = function( str , b ) -- big-endian byte to number
@@ -191,17 +200,23 @@ do
 	local bytestonumber = function( str , bpb )
 		local n = 0
 		local mult = 2^bpb
-		for i = 1 , str:len() do
-			n = n + str:byte(i)*(mult^(i-1))
+		local strlen = str:len()
+		local bytes = {str:byte(1,strlen)}
+		for i = 1 , strlen do
+			n = n + bytes[i]*(mult^(i-1))
 		end
 		return n
+	end
+	local strchar = {}
+	for i = 0 , 2^8 - 1 do
+		strchar[i] = string.char( i )
 	end
 	local numbertobytes = function( num , bpb , len )
 		local t = {}
 		local mult = 2^bpb
 		for i = 1 , len do -- ensures no overflow, and forces length to be exactly len
 			local x = num % mult
-			t[i] = string.char( x )
+			t[i] = strchar[x]
 			num = math.floor( num / mult )
 		end
 		return table.concat( t )
@@ -529,7 +544,7 @@ do
 		local sz , nbits , dt = params.size , math.log( params.size + 1 ) / log2 + 1 , params.datatype
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: VarDataList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: VarDataList: Expected integer" , 2 ) end
-		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode ) then db2.info = 7 return error( "db2: VarDataList: Expected datatype, found " .. type(schema) , 2 ) end
+		if type(dt) ~= "table" or not ( dt.encode and dt.decode ) then db2.info = 7 return error( "db2: VarDataList: Expected datatype, found " .. type(dt) , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -562,7 +577,7 @@ do
 		local sz , dt = params.size , params.datatype
 		if type(sz) ~= "number" then db2.info = 7 return error( "db2: FixedDataList: Expected number, found " .. type(sz) , 2 ) end
 		if math.floor(sz) ~= sz then db2.info = 7 return error( "db2: FixedDataList: Expected integer" , 2 ) end
-		if type(schema) ~= "table" or not ( datatype.encode and datatype.decode ) then db2.info = 7 return error( "db2: FixedDataList: Expected datatype, found " .. type(schema) , 2 ) end
+		if type(dt) ~= "table" or not ( dt.encode and dt.decode ) then db2.info = 7 return error( "db2: FixedDataList: Expected datatype, found " .. type(dt) , 2 ) end
 		
 		return {
 			encode = function( data , bpb )
@@ -650,6 +665,41 @@ do
 					for j = 1 , #schema do
 						out[i][schema[j].key] , ptr = schema[j].decode( enc , ptr , bpb )
 					end
+				end
+				return out , ptr
+			end,
+			key = params.key,
+		}
+	end
+	
+	db2.SwitchObject = function( params )
+		db2.info = 0
+		
+		local typekey , typedt , schemamap = params.typekey == nil and "type" or params.typekey , params.typedt , params.schemamap
+		if type(schemamap) ~= "table" then db2.info = 7 return error( "db2: SwitchObject: Expected table, found " .. type(schemamap) , 2 ) end
+		if type(typedt) ~= "table" or not ( typedt.encode and typedt.decode ) then db2.info = 7 return error( "db2: FixedDataList: Expected datatype, found " .. type(typedt) , 2 ) end
+		
+		return {
+			encode = function( data , bpb )
+				if type(data) ~= "table" then db2.info = 1 return error( "db2: SwitchObject: encode: Expected table, found " .. type(data) ) end
+				if data[typekey] and schemamap[data[typekey]] then
+					local schema = schemamap[data[typekey]]
+					if type(schema) ~= "table" then db2.info = 1 return error( "db2: SwitchObject: encode: schemamap is not a map of typekey->schema" ) end
+					local enc = {}
+					enc[1] = typedt.encode( data[typekey] , bpb )
+					for i = 1 , #schema do
+						enc[i+1] = schema[i].encode( data[schema[i].key] , bpb )
+					end
+					return table.concat( enc )
+				else db2.info = 1 return error( "db2: SwitchObject: encode: Type key not found or schemamap does not contain key" ) end
+			end,
+			decode = function( enc , ptr , bpb )
+				local typ , ptr = typedt.decode( enc , ptr , bpb )
+				local schema = schemamap[typ]
+				if type(schema) ~= "table" then db2.info = 9 return error( "db2: SwitchObject: decode: schema of decoded type is not available" ) end
+				local out = {[typekey]=typ}
+				for i = 1 , #schema do
+					out[schema[i].key] , ptr = schema[i].decode( enc , ptr , bpb )
 				end
 				return out , ptr
 			end,

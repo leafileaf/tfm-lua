@@ -1,3 +1,14 @@
+local sosm = { -- type->schema
+	[1] = {
+		db2.VarChar{ size = 127 , key = "bleh" },
+		db2.UnsignedInt{ size = 3 , key = "blah" },
+	},
+	[2] = {
+		db2.VarChar{ size = 127 , key = "blah" },
+		db2.UnsignedInt{ size = 3 , key = "bleh" },
+	}
+}
+
 local schema = {
 	VERSION = 24,
 	db2.UnsignedInt{ size = 2 , key = "apple" },
@@ -9,6 +20,8 @@ local schema = {
 	db2.FixedObjectList{ size = 3 , key = "owo" , schema = {
 		db2.UnsignedInt{ size = 1 , key = "lmao" }
 	} },
+	db2.VarDataList{ size = 5 , key = "aaa" , datatype = db2.UnsignedInt{ size = 2 } },
+	db2.FixedDataList{ size = 2 , key = "bbb" , datatype = db2.UnsignedInt{ size = 2 } },
 	db2.VarChar{ size = 20 , key = "kek" },
 	db2.FixedChar{ size = 5 , key = "kak" },
 	db2.Float{ key = "test" },
@@ -17,6 +30,8 @@ local schema = {
 	db2.VarBitset{ size = 20 , key = "vbstest" },
 	db2.VarBitset{ size = 250 , key = "ltest" },
 	db2.VarChar{ size = 5 , key = "endt" },
+	db2.SwitchObject{ typekey = "type" , typedt = db2.UnsignedInt{ size = 2 } , schemamap = sosm , key = "sot1" },
+	db2.SwitchObject{ typekey = "type" , typedt = db2.UnsignedInt{ size = 2 } , schemamap = sosm , key = "sot2" },
 }
 
 local lt = {}
@@ -31,12 +46,24 @@ local source = { apple = 50 , pear = 20 , kek = "kekekeke" , kak = "kakak" , end
 	{ lmao = 100 },
 	{ lmao = 42 },
 	{ lmao = 7 },
+} , aaa = {
+	1 , 4 , 2
+} , bbb = {
+	24 , 8
 } , bstest = {
 	true, true, false, true, false, false, true,
 	false, true, false, true, false, false, true
 } , vbstest = {
 	true, false, true
-} , ltest = lt }
+} , ltest = lt , sot1 = {
+	type = 2,
+	bleh = 50,
+	blah = "sot1ok"
+} , sot2 = {
+	type = 1,
+	bleh = "sot2 ok!",
+	blah = 123
+} }
 
 local e = db2.encode( schema , source , { USE_MAGIC = false } )
 
@@ -49,10 +76,12 @@ local function rcheck( t , s , n )
 			if not rcheck( t[k] , s[k] , n.."."..k ) then f = false end
 		elseif s[k] ~= t[k] then
 			print(n.."."..k..": "..tostring(s[k]).." ~= "..tostring(t[k]))
-			if type(s[k]) == "number" and type(t[k]) == "number" then
-				print("difference = "..math.abs(s[k]-t[k]))
-			end
 			f = false
+			if type(s[k]) == "number" and type(t[k]) == "number" then
+				local diff = math.abs(s[k]-t[k])
+				print("difference = "..diff)
+				if diff < 1e-6 then f = true end
+			end
 		end
 	end
 	return f
