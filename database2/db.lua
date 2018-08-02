@@ -83,24 +83,24 @@ do
 	-- db2.VarDataList{ size = n , datatype = d }
 	-- Creates a VarDataList datatype
 	-- Encodes a list of up to n data encodable by d
-	-- Uses ceil(log(n+1)/log(2^bpb)) + [..:encodeddata] bytes
+	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	--
 	-- db2.FixedDataList{ size = n , datatype = d }
 	-- Creates a FixedDataList datatype
 	-- Encodes a list of exactly n data encodable by d
-	-- Uses [..:encodeddata] bytes
+	-- Uses [...encodeddata] bytes
 	-- if the list has less than n objects, an error is thrown
 	--
 	-- db2.VarObjectList{ size = n , schema = s }
 	-- Creates a VarObjectList datatype
 	-- Encodes a list of up to n objects with structure s
-	-- Uses ceil(log(n+1)/log(2^bpb)) + [..:encodeddata] bytes
+	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	--
 	-- db2.FixedObjectList{ size = n , schema = s }
 	-- Creates a FixedObjectList datatype
 	-- Encodes a list of exactly n objects with structure s
-	-- Uses [..:encodeddata] bytes
+	-- Uses [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	-- if the list has less than n objects, an error is thrown
 	--
@@ -647,7 +647,7 @@ do
 			local lsz = math.ceil(o.__nbits/bpb) -- length of size
 			local enc = { numbertobytes( #data , bpb , lsz ) }
 			for i = 1 , #data do
-				for j = 1 , #o.__schema do -- same loop as db2:encode
+				for j = 1 , #o.__schema do -- same loop as db2.encode
 					table.insert( enc , o.__schema[j]:encode( data[i][o.__schema[j].key] , bpb ) )
 				end
 			end
@@ -660,7 +660,7 @@ do
 			local out = {}
 			for i = 1 , n do
 				out[i] = {}
-				for j = 1 , #o.__schema do -- same loop as db2:decode
+				for j = 1 , #o.__schema do -- same loop as db2.decode
 					out[i][o.__schema[j].key] , ptr = o.__schema[j]:decode( enc , ptr , bpb )
 				end
 			end
