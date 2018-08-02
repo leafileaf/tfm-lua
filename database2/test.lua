@@ -34,6 +34,25 @@ local schema = {
 	db2.SwitchObject{ typekey = "type" , typedt = db2.UnsignedInt{ size = 2 } , schemamap = sosm , key = "sot2" },
 }
 
+local schemadatatypes = {
+	db2.UnsignedInt,
+	db2.UnsignedInt,
+	db2.VarObjectList,
+	db2.FixedObjectList,
+	db2.VarDataList,
+	db2.FixedDataList,
+	db2.VarChar,
+	db2.FixedChar,
+	db2.Float,
+	db2.Double,
+	db2.Bitset,
+	db2.VarBitset,
+	db2.VarBitset,
+	db2.VarChar,
+	db2.SwitchObject,
+	db2.SwitchObject,
+}
+
 local lt = {}
 for i = 1 , 230 do
 	lt[i] = math.random(1,2) == 1
@@ -87,4 +106,13 @@ local function rcheck( t , s , n )
 	return f
 end
 
-print("AC = "..tostring(rcheck(d,source,"")))
+local isAC = rcheck(d,source,"")
+
+for i = 1 , #schemadatatypes do
+	if schema[i].basetype ~= schemadatatypes[i] then
+		isAC = false
+		print("i="..i..": "..tostring(schema[i].basetype).."~="..tostring(schemadatatypes[i]))
+	end
+end
+
+print("AC = "..tostring(isAC))
