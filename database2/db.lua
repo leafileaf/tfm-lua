@@ -4,7 +4,6 @@
 
 ----- IMPORTANT -----
 -- database2 can decode and encode database1 strings, but encoding to db1 is discouraged
--- database2 is not compatible with the data format used in database3
 
 do
 	local db2 = {}
@@ -30,81 +29,100 @@ do
 	-- schemas:
 	-- a list of datatypes in the order to be encoded
 	-- field VERSION with the schema version, omit if no versioning is to be done
+	-- optionally pass a VERSION parameter to encode to override the schema table's VERSION property (if any)
 	--
 	--
 	-- datatypes:
-	-- all datatypes also accept the following parameters:
+	-- all datatype instances have the following methods and properties:
 	--
-	-- key = k:
+	-- dt:encode( any data , integer bpb ) -> string
+	-- data: the data to be encoded.
+	-- bpb: either 7 or 8. the number of bits per byte.
+	-- attempts to encode the provided data into the form specified by this datatype instance
+	-- returns an encoded string, or errors if the data is invalid
+	--
+	-- dt:decode( string enc , integer ptr , integer bpb ) -> any , integer
+	-- enc: an encoded string containing the required data.
+	-- ptr: the index of the string where the encoded data for this instance can be found.
+	-- bpb: either 7 or 8. the number of bits per byte.
+	-- attempts to decode the encoded string according to the form specified by this datatype instance.
+	-- returns the decoded data, and the new ptr referencing the index after the data chunk.
+	--
+	-- dt.basetype
+	-- the constructor function used to create this datatype instance.
+	--
+	-- all datatype constructors accept the following parameters:
+	--
+	-- key = any k:
 	-- indicates the data for this datatype can be found in key k
 	-- only optional if passing datatype as a parameter to db2.VarDataList or db2.FixedDataList
 	-- otherwise, breaks with unclean error on encode/decode attempt
 	--
-	-- db2.UnsignedInt{ size = n }
+	-- db2.UnsignedInt{ size = integer n } -> UnsignedInt
 	-- Creates an UnsignedInt datatype using n bytes
 	-- Encodes an unsigned integer
 	--
-	-- db2.Float{}
+	-- db2.Float{} -> Float
 	-- Creates a Float datatype
 	-- Encodes a floating-point number
 	-- Uses 4 bytes
 	-- IEEE754 single-precision encoding for 8-bit-per-byte encoding, otherwises uses a 7-bit exponent and a 20-bit significand
 	--
-	-- db2.Double{}
+	-- db2.Double{} -> Double
 	-- Creates a Double datatype
 	-- Encodes a floating-point number
 	-- Uses 8 bytes
 	-- IEEE754 double-precision encoding for 8-bit-per-byte encoding, otherwise uses a 10-bit exponent and a 45-bit significand
 	--
-	-- db2.VarChar{ size = n }
+	-- db2.VarChar{ size = integer n } -> VarChar
 	-- Creates a VarChar datatype
 	-- Encodes a string of maximum length n
 	-- [length (x)][data...]
 	-- x is the minimum number of bytes required to encode maximum length n
 	-- Uses x+len(data) bytes
 	--
-	-- db2.FixedChar{ size = n }
+	-- db2.FixedChar{ size = integer n } -> FixedChar
 	-- Creates a FixedChar datatype
 	-- Encodes a string of length n
 	-- [data...]
 	-- Uses n bytes
 	-- Shorter strings will be right-padded with \x00
 	--
-	-- db2.Bitset{ size = n }
+	-- db2.Bitset{ size = integer n } -> Bitset
 	-- Creates a Bitset datatype
 	-- Encodes n boolean values
 	-- Uses ceil(n/bpb) bytes
 	--
-	-- db2.VarBitset{ size = n }
+	-- db2.VarBitset{ size = integer n } -> VarBitset
 	-- Creates a VarBitset datatype
 	-- Encodes up to n boolean values
 	-- Uses ceil(len(data)/bpb) + ceil(log(n+1)/log(2^bpb)) bytes
 	--
-	-- db2.VarDataList{ size = n , datatype = d }
+	-- db2.VarDataList{ size = integer n , datatype = Datatype d } -> VarDataList
 	-- Creates a VarDataList datatype
 	-- Encodes a list of up to n data encodable by d
 	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	--
-	-- db2.FixedDataList{ size = n , datatype = d }
+	-- db2.FixedDataList{ size = integer n , datatype = Datatype d } -> FixedDataList
 	-- Creates a FixedDataList datatype
 	-- Encodes a list of exactly n data encodable by d
 	-- Uses [...encodeddata] bytes
 	-- if the list has less than n objects, an error is thrown
 	--
-	-- db2.VarObjectList{ size = n , schema = s }
+	-- db2.VarObjectList{ size = integer n , schema = Datatype[] s } -> VarObjectList
 	-- Creates a VarObjectList datatype
 	-- Encodes a list of up to n objects with structure s
 	-- Uses ceil(log(n+1)/log(2^bpb)) + [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	--
-	-- db2.FixedObjectList{ size = n , schema = s }
+	-- db2.FixedObjectList{ size = integer n , schema = Datatype[] s } -> FixedObjectList
 	-- Creates a FixedObjectList datatype
 	-- Encodes a list of exactly n objects with structure s
 	-- Uses [...encodeddata] bytes
 	-- if s has a VERSION field, it will be ignored
 	-- if the list has less than n objects, an error is thrown
 	--
-	-- db2.SwitchObject{ typekey = tk , typedt = tdt , schemamap = sm }
+	-- db2.SwitchObject{ typekey = any tk , typedt = Datatype tdt , schemamap = table<any,Datatype[]> sm } -> SwitchObject
 	-- Creates a SwitchObject datatype
 	-- Encodes an object with a structure dependent on the type found in typekey
 	-- See the test file for example usage
@@ -115,7 +133,7 @@ do
 	--
 	-- functions:
 	--
-	-- db2.Datatype{ init = initf , encode = encodef , decode = decodef }
+	-- db2.Datatype{ init = function initf , encode = function encodef , decode = function decodef } -> DatatypeClass
 	-- Creates a new Datatype class
 	-- instantiation function initf( dt , params )
 	-- encode function encodef( dt , data , bpb )
@@ -123,36 +141,36 @@ do
 	-- returns the new Datatype class
 	-- note: internally-used function - only use if you know what you are doing!
 	--
-	-- db2.encode( schema , data , optional params )
+	-- db2.encode( Datatype[] schema , table data , optional table<string,any> params ) -> string
 	-- Encodes data with the given schema
 	-- Optionally applies params to the encoding
 	--
-	-- db2.decode( schemalist , encoded , optional params )
+	-- db2.decode( table<integer,Datatype[]> schemalist , string encoded , optional table<string,any> params ) -> table
 	-- Decodes data with the given schema
 	-- Optionally applies params to the encoding
 	-- If a settings byte is present, it overrides params
 	-- If no version is present, treats schemalist as a single schema
 	--
-	-- db2.test( encoded , optional params )
+	-- db2.test( string encoded , optional table<string,any> params ) -> boolean
 	-- Tests if encoded is a valid db2 string with optional params
 	--
-	-- db2.errorfunc( func )
+	-- db2.errorfunc( function func ) -> nil
 	-- Instead of throwing errors, db2 will now call func if it encounters an error
 	--
-	-- db2.bytestonumber( bytes , bpb )
+	-- db2.bytestonumber( string bytes , integer bpb ) -> integer
 	-- Converts bytes to an integer using bpb bits per byte
 	-- Uses little-endian encoding
 	--
-	-- db2.numbertobytes( num , bpb , len )
+	-- db2.numbertobytes( integer num , integer bpb , integer len ) -> string
 	-- Converts num to a string of length len using bpb bits per byte
 	-- Uses little-endian encoding
 	--
-	-- db2.lbtn( bytes , bpb )
+	-- db2.lbtn( string bytes , integer bpb ) -> integer
 	-- Converts bytes to an integer using bpb bits per byte
 	-- Legacy function for decoding db1 strings
 	-- Uses big-endian encoding
 	--
-	-- db2.lntb( num , bpb , expected_length )
+	-- db2.lntb( integer num , integer bpb , integer expected_length ) -> string
 	-- Converts num to a string of length expected_length using bpb bits per byte
 	-- Legacy function for encoding db1 strings
 	-- Uses big-endian encoding
@@ -160,13 +178,13 @@ do
 	-- Encoding in legacy mode is discouraged
 	--
 	-- Valid parameters to db2.encode and db2.decode:
-	-- USE_SETTINGS (default true): whether to encode a byte with encoding settings in front
-	-- USE_MAGIC (default true): whether to use magic bytes to ensure read string is db2
-	-- USE_EIGHTBIT (default false): whether to use 8-bit encoding
-	-- USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
-	-- USE_LEGACY (default false): legacy mode encoding/decoding NOTE: broken, fix later
-	-- USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
-	-- VERSION (default nil): use this version number instead of the one specified in schema.VERSION (if any), ignored when used with db2.decode
+	-- boolean USE_SETTINGS (default true): whether to encode a byte with encoding settings in front
+	-- boolean USE_MAGIC (default true): whether to use magic bytes to ensure read string is db2
+	-- boolean USE_EIGHTBIT (default false): whether to use 8-bit encoding
+	-- integer USE_VERSION (default nil): force a specific number of version bytes, if nil scales dynamically
+	-- boolean USE_LEGACY (default false): legacy mode encoding/decoding NOTE: broken, fix later
+	-- boolean USE_SCHEMALIST (default false): never treat schemalist as a single schema when decoding, throws an error when used with db2.encode
+	-- integer VERSION (default nil): use this version number instead of the one specified in schema.VERSION (if any), ignored when used with db2.decode
 	
 	local error = error
 	
@@ -245,8 +263,7 @@ do
 		local init , encode , decode = dtinfo.init , dtinfo.encode , dtinfo.decode
 		local mt
 		local r = function( params )
-			local o = setmetatable( {} , mt )
-			o.key = params.key
+			local o = setmetatable( {key=params.key} , mt )
 			init( o , params )
 			return o
 		end
@@ -723,7 +740,7 @@ do
 					enc[i+1] = schema[i]:encode( data[schema[i].key] , bpb )
 				end
 				return table.concat( enc )
-			else db2.info = 1 return error( "db2: SwitchObject: encode: Type key not found or schemamap does not contain key" ) end
+			else db2.info = 1 return error( "db2: SwitchObject: encode: Typekey value not found or schemamap does not contain key" ) end
 		end,
 		decode = function( o , enc , ptr , bpb )
 			local typ , ptr = o.__typedt:decode( enc , ptr , bpb )
