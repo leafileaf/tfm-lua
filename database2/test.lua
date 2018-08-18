@@ -95,11 +95,16 @@ local function rcheck( t , s , n )
 			if not rcheck( t[k] , s[k] , n.."."..k ) then f = false end
 		elseif s[k] ~= t[k] then
 			print(n.."."..k..": "..tostring(s[k]).." ~= "..tostring(t[k]))
-			f = false
 			if type(s[k]) == "number" and type(t[k]) == "number" then
 				local diff = math.abs(s[k]-t[k])
 				print("difference = "..diff)
-				if diff < 1e-6 then f = true end
+				if diff < 1e-6 then
+					-- continue
+				else
+					f = false
+				end
+			else
+				f = false
 			end
 		end
 	end
