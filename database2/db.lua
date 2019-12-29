@@ -67,7 +67,7 @@ do
 		for i = 1 , len do -- ensures no overflow, and forces length to be exactly len
 			local x = num % mult
 			t[i] = strchar[x]
-			num = math.floor( num / mult )
+			num = ( num - num % mult ) / mult -- floored divide
 		end
 		return table.concat( t )
 	end
@@ -345,26 +345,32 @@ do
 			if type(data) ~= "table" then db2.info = 1 return error( "db2: Bitset: encode: Expected table, found " .. type(data) ) end
 			if #data > o.__sz then db2.info = 2 return error( "db2: Bitset: encode: Data is bigger than is allocated for" ) end
 			local r = {}
+			local nr = 0
 			for i = 1 , math.ceil( o.__sz / bpb ) do
 				local n = 0
 				for j = 1 , bpb do
 					n = n + ( data[(i-1)*bpb+j] and 1 or 0 ) * 2^(j-1)
 				end
-				table.insert( r , string.char(n) )
+				nr = nr + 1
+				r[nr] = strchar[n]
 			end
 			return table.concat( r )
 		end,
 		decode = function( o , enc , ptr , bpb )
 			local r = {}
-			for i = 1 , math.ceil( o.__sz / bpb ) do
-				local n = enc:byte( ptr + i - 1 )
+			local nr = 0
+			local bssz = math.ceil( o.__sz / bpb )
+			local bytes = { enc:byte( ptr , ptr+bssz-1 ) }
+			for i = 1 , bssz do
+				local n = bytes[i]
 				for j = 1 , bpb do
-					table.insert( r , n%2 == 1 )
-					if #r == o.__sz then break end
-					n = math.floor( n / 2 )
+					nr = nr+1
+					r[nr] = n%2 == 1
+					if nr == o.__sz then break end
+					n = (n-n%2)/2 -- floored divide
 				end
 			end
-			ptr = ptr + math.ceil( o.__sz / bpb )
+			ptr = ptr + bssz
 			return r , ptr
 		end
 	}
@@ -383,13 +389,16 @@ do
 			if type(data) ~= "table" then db2.info = 1 return error( "db2: VarBitset: encode: Expected table, found " .. type(data) ) end
 			if #data > o.__sz then db2.info = 2 return error( "db2: VarBitset: encode: Data is bigger than is allocated for" ) end
 			local lsz = math.ceil(o.__nbits/bpb)
-			local r = { numbertobytes( #data , bpb , lsz ) }
-			for i = 1 , math.ceil( #data / bpb ) do
+			local ldata = #data
+			local r = { numbertobytes( ldata , bpb , lsz ) }
+			local nr = 1
+			for i = 1 , math.ceil( ldata / bpb ) do
 				local n = 0
 				for j = 1 , bpb do
 					n = n + ( data[(i-1)*bpb+j] and 1 or 0 ) * 2^(j-1)
 				end
-				table.insert( r , string.char(n) )
+				nr = nr + 1
+				r[nr] = strchar[n]
 			end
 			return table.concat( r )
 		end,
@@ -397,15 +406,19 @@ do
 			local lsz = math.ceil(o.__nbits/bpb)
 			local num = bytestonumber( enc:sub( ptr , ptr + lsz - 1 ) , bpb )
 			local r = {}
-			for i = 1 , math.ceil( num / bpb ) do
-				local n = enc:byte( ptr + lsz + i - 1 )
+			local nr = 0
+			local bssz = math.ceil( num / bpb )
+			local bytes = { enc:byte( ptr+lsz , ptr+lsz+bssz-1 ) }
+			for i = 1 , bssz do
+				local n = bytes[i]
 				for j = 1 , bpb do
-					table.insert( r , n%2 == 1 )
-					if #r == num then break end
-					n = math.floor( n / 2 )
+					nr = nr + 1
+					r[nr] = n%2 == 1
+					if nr == num then break end
+					n = (n-n%2)/2 -- floored divide
 				end
 			end
-			ptr = ptr + lsz + math.ceil( num / bpb )
+			ptr = ptr + lsz + bssz
 			return r , ptr
 		end
 	}
@@ -427,7 +440,7 @@ do
 			local lsz = math.ceil(o.__nbits/bpb) -- length of size
 			local enc = { numbertobytes( #data , bpb , lsz ) }
 			for i = 1 , #data do
-				table.insert( enc , o.__dt:encode( data[i] , bpb ) )
+				enc[i+1] = o.__dt:encode( data[i] , bpb )
 			end
 			return table.concat( enc )
 		end,
@@ -459,7 +472,7 @@ do
 			if #data ~= o.__sz then db2.info = 2 return error( "db2: FixedDataList: encode: Data size is not as declared" ) end
 			local enc = {}
 			for i = 1 , o.__sz do
-				table.insert( enc , o.__dt:encode( data[i] , bpb ) )
+				enc[i] = o.__dt:encode( data[i] , bpb )
 			end
 			return table.concat( enc )
 		end,
@@ -684,12 +697,12 @@ do
 		
 		local vl = params.USE_VERSION or ( ( not VERSION ) and 0 or math.ceil((math.log(VERSION+1)/log2)/bpb) )
 		local enc = {
-			USE_SETTINGS and numbertobytes( vl + 8 + ( USE_MAGIC and 16 or 0 ) + 32 + ( USE_EIGHTBIT and 128 or 0 ) , bpb , 1 ),
-			USE_MAGIC and numbertobytes( 9224 + ( USE_EIGHTBIT and 32768 or 0 ) , bpb , 2 ),
+			USE_SETTINGS and numbertobytes( vl + 8 + ( USE_MAGIC and 16 or 0 ) + 32 + ( USE_EIGHTBIT and 128 or 0 ) , bpb , 1 ) or "",
+			USE_MAGIC and numbertobytes( 9224 + ( USE_EIGHTBIT and 32768 or 0 ) , bpb , 2 ) or "",
 			numbertobytes( VERSION or 0 , bpb , vl ),
 		}
 		for i = 1 , #schema do
-			table.insert( enc , schema[i]:encode( data[schema[i].key] , bpb ) )
+			enc[i+3] = schema[i]:encode( data[schema[i].key] , bpb )
 			if db2.info ~= 0 then return end
 		end
 		return table.concat( enc )
